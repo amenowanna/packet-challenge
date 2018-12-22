@@ -6,23 +6,29 @@ using System.Runtime.Serialization.Json;
 using System.Threading.Tasks;
 using System.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Text;
 
 namespace PacketChallenge
 {
     class Program
     {
-        private static readonly HttpClient client = new HttpClient();
         private static string apiKey = "";
 
         static void Main(string[] args)
         {
             apiKey = args[0];
-            var device = CreateDevice();
+
+            Console.WriteLine("Creating Device...");
+            var device = CreateDevice().Result;
+            string deviceId = device.id;
+            Console.WriteLine($"Deleting Device {deviceId}...");
+            DeleteDevice(deviceId);
         }
 
-        private static async Task<object> CreateDevice()
+        private static async Task<dynamic> CreateDevice()
         {
+            HttpClient client = new HttpClient();
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Add("X-Auth-Token", apiKey);
 
@@ -39,20 +45,22 @@ namespace PacketChallenge
             response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             response.EnsureSuccessStatusCode();
             string responseBody = await response.Content.ReadAsStringAsync();
-            object responseBodyObject = JsonConvert.DeserializeObject(responseBody);
+            dynamic responseBodyObject = JObject.Parse(responseBody);
             Console.WriteLine(responseBodyObject);
             return responseBodyObject;
         }
-        
-        public static object DeserializeFromStream(Stream stream)
-        {
-            var serializer = new JsonSerializer();
 
-            using (var sr = new StreamReader(stream))
-            using (var jsonTextReader = new JsonTextReader(sr))
-            {
-                return serializer.Deserialize(jsonTextReader);
-            }
+        private static async void DeleteDevice(string deviceId)
+        {
+            HttpClient client = new HttpClient();
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Add("X-Auth-Token", apiKey);
+
+            HttpResponseMessage response = await client.DeleteAsync($"https://api.packet.net/devices/{deviceId}");
+            //Need to implement way to check if device can be deleted and have an exponential backoff retry logic to handle this
+            string responseBody = await response.Content.ReadAsStringAsync();
+            dynamic responseBodyObject = JObject.Parse(responseBody);
+            Console.WriteLine(responseBodyObject);
         }
     }
 }
